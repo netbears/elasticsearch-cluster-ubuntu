@@ -66,8 +66,6 @@ Parameters:
     Type: AWS::EC2::KeyPair::KeyName
     Description: Name of an existing EC2 KeyPair to enable SSH access to instances
 
-  
-
   SubnetID1:
     Type: AWS::EC2::Subnet::Id
 
@@ -113,7 +111,7 @@ Resources:
       ToPort: '9100'
       CidrIp: 0.0.0.0/0
 
-  SgALBAllTrafficports:
+  SgElbAllTrafficports:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
       GroupId: !Ref 'Sg'
@@ -216,7 +214,7 @@ Resources:
       DesiredCapacity:
         Ref: AsgMinSize
       LoadBalancerNames:
-      - Ref: ElbELBElasticSearch
+      - Ref: ElbElasticSearch
       Tags:
       - Key: Name
         Value: ElasticSearchCluster
@@ -266,11 +264,10 @@ Resources:
             - default-jre
             - wget
             write_files:
-            - path: /etc/cron.d/db-backup
+            - path: /etc/cron.d/elasticsearch-backup
               content: |
                 0 1 */3 0 0 root aws s3 sync /mnt/elasticsearch/ s3://${ElasticSearchBackup}/$(HOSTNAME)/$(date)/
               permissions: '0600'
-            write_files:
             - path: /etc/elasticsearch/elasticsearch.yml
               content: |
                 cluster.name: elasticsearch_netbears
@@ -291,7 +288,7 @@ Resources:
             - wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | apt-key add 
             - echo "deb https://artifacts.elastic.co/packages/5.x/apt stable main" | tee -a /etc/apt/sources.list.d/elastic-5.x.list
             - apt-get update
-            - printf '\n' | apt-get install elasticsearch
+            - printf '\n' | apt-get install -y elasticsearch
             - cd /tmp
             - curl -LO https://github.com/prometheus/node_exporter/releases/download/v0.14.0/node_exporter-0.14.0.linux-amd64.tar.gz
             - tar xvf node_exporter-0.14.0.linux-amd64.tar.gz
@@ -447,11 +444,11 @@ Resources:
       ToPort: '65535'
       SourceSecurityGroupId: !Ref 'Sg'
 
-  ElbELBElasticSearch:
+  ElbElasticSearch:
     Type: AWS::ElasticLoadBalancing::LoadBalancer
     Properties:
       LoadBalancerName:
-        Fn::Sub: ${AWS::StackName}-elasticsearch
+        Fn::Sub: ${AWS::StackName}
       Scheme: internet-facing
       Subnets: 
       - !Ref SubnetID1
@@ -479,8 +476,8 @@ Resources:
 
 Outputs:
   Asg:
-    Value:
-      Ref: Asg
+    Value: !Ref Asg
+
   URL:
     Description: The URL to check the ElasticSearch Cluster health
     Value:
@@ -488,6 +485,10 @@ Outputs:
       - ''
       - - http://
         - Fn::GetAtt:
-          - ElbELBElasticSearch
+          - ElbElasticSearch
           - DNSName
         - /_cluster/health
+
+  SecurityGroup:
+    Description: Auto-Discovery SecurityGroup for ElasticSearch
+    Value: !Ref Sg
